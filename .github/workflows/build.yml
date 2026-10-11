@@ -1,0 +1,112 @@
+name: Build desktop binaries
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: desktop-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            target: linux-x86_64
+          - runner: ubuntu-24.04-arm
+            target: linux-arm64
+          - runner: windows-2022
+            target: windows-x86_64
+    runs-on: ${{ matrix.runner }}
+    env:
+      CARGO_INCREMENTAL: '0'
+      CARGO_BUILD_JOBS: '2'
+      CARGO_PROFILE_RELEASE_DEBUG: '0'
+      CARGO_PROFILE_RELEASE_LTO: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Prepare pinned engine and application patch
+        run: python scripts/prepare.py
+      - name: Set up Servo Python environment
+        uses: ./vendor/servo/.github/actions/setup-python
+        with:
+          python-version-file-path: vendor/servo/.python-version
+      - name: Install LLVM
+        uses: KyleMayes/install-llvm-action@v2
+        with:
+          version: '20.1'
+          directory: ${{ runner.temp }}/llvm
+      - name: Set Linux libclang path
+        if: runner.os == 'Linux'
+        run: echo "LIBCLANG_PATH=${LLVM_PATH}/lib" >> "$GITHUB_ENV"
+      - name: Set Windows libclang path
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: '"LIBCLANG_PATH=$env:LLVM_PATH\bin" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append'
+      - name: Bootstrap Linux dependencies
+        if: runner.os == 'Linux'
+        working-directory: vendor/servo
+        run: |
+          sudo apt-get update
+          ./mach bootstrap --yes --skip-lints --skip-nextest
+          sudo apt-get install -y gstreamer1.0-plugins-base gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-plugins-ugly gstreamer1.0-libav mesa-va-drivers dpkg-dev
+      - name: Bootstrap Windows dependencies
+        if: runner.os == 'Windows'
+        working-directory: vendor/servo
+        shell: pwsh
+        run: |
+          .\mach fetch
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          .\mach bootstrap-gstreamer
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Build Linux application with real GStreamer backend
+        if: runner.os == 'Linux'
+        working-directory: vendor/servo
+        run: ./mach build --release --locked --media-stack gstreamer
+      - name: Build Windows application with real GStreamer backend
+        if: runner.os == 'Windows'
+        working-directory: vendor/servo
+        shell: pwsh
+        run: |
+          .\mach build --release --locked --media-stack gstreamer
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Package application and runtime
+        run: python scripts/package.py --target ${{ matrix.target }}
+      - name: Smoke-test Linux packaged runtime and software encoder
+        if: runner.os == 'Linux'
+        run: |
+          dist/ytm-servo-${{ matrix.target }}/ytm-servo --ytm-diagnostics > dist/diagnostics-${{ matrix.target }}.txt
+          dist/ytm-servo-${{ matrix.target }}/ytm-servo --ytm-media=cpu --ytm-encode-test=dist/encoder-smoke.mp4 --ytm-encoder=cpu
+      - name: Smoke-test Windows packaged runtime and software encoder
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $app = Resolve-Path 'dist/ytm-servo-windows-x86_64/ytm-servo.exe'
+          $process = Start-Process -FilePath $app -ArgumentList '--ytm-diagnostics' -Wait -PassThru -NoNewWindow -RedirectStandardOutput 'dist/diagnostics-windows-x86_64.txt'
+          if ($process.ExitCode -ne 0) { throw "Diagnostics failed: $($process.ExitCode)" }
+          $process = Start-Process -FilePath $app -ArgumentList '--ytm-media=cpu','--ytm-encode-test=dist/encoder-smoke.mp4','--ytm-encoder=cpu' -Wait -PassThru -NoNewWindow
+          if ($process.ExitCode -ne 0) { throw "Encoder test failed: $($process.ExitCode)" }
+      - name: Upload binaries and checksums
+        uses: actions/upload-artifact@v4
+        with:
+          name: ytm-servo-${{ matrix.target }}
+          if-no-files-found: error
+          retention-days: 30
+          path: |
+            dist/*.zip
+            dist/*.tar.gz
+            dist/*.deb
+            dist/SHA256SUMS-*.txt
+            dist/diagnostics-*.txt
