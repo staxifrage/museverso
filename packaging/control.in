@@ -1,0 +1,11 @@
+Package: ytm-servo
+Version: 0.1.0
+Section: sound
+Priority: optional
+Architecture: @ARCH@
+Maintainer: YTM Servo contributors
+Depends: libc6 (>= 2.39), libstdc++6, libgcc-s1, libatomic1, libdbus-1-3, libfontconfig1, libfreetype6, libharfbuzz0b, libx11-6, libxcb1, libxrandr2, libxi6, libxcursor1, libxkbcommon0, libwayland-client0, libegl1, libgl1, libudev1, libasound2t64, libssl3t64, libgstreamer1.0-0 (>= 1.24), libgstreamer-plugins-base1.0-0, libgstreamer-plugins-bad1.0-0, gstreamer1.0-plugins-base, gstreamer1.0-plugins-good, gstreamer1.0-plugins-bad, gstreamer1.0-plugins-ugly, gstreamer1.0-libav
+Recommends: mesa-va-drivers
+Description: Experimental YouTube Music shell powered by Servo
+ Dedicated desktop profile, media diagnostics and hardware decoder preference.
+ YouTube Music playback is blocked by missing upstream Media Source Extensions.

@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=YTM Servo (Experimental)
+Comment=YouTube Music in Servo — playback compatibility is incomplete
+Exec=ytm-servo
+Icon=ytm-servo
+Terminal=false
+Categories=AudioVideo;Audio;Player;
+StartupNotify=true

@@ -1,0 +1,7 @@
+{
+  "repository": "https://github.com/servo/servo.git",
+  "revision": "a7c2999d04ebad613202a2fcfedaf258c924ce71",
+  "rust": "1.97.1",
+  "verified_on": "2026-10-11",
+  "media_source_extensions": false
+}

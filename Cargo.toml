@@ -1,0 +1,19 @@
+[package]
+name = "ytm-servo-media"
+version = "0.1.0"
+edition = "2024"
+license = "MPL-2.0"
+rust-version = "1.97.1"
+description = "Media policy and codec diagnostics for YTM Servo"
+
+[dependencies]
+gstreamer = { version = "=0.25.4", features = ["v1_18"] }
+
+[[bin]]
+name = "ytm-media-check"
+path = "src/main.rs"
+
+[dev-dependencies]
+egui = "=0.34.3"
+dirs = "6"
+serde_json = "1"
